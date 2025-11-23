@@ -1,0 +1,2074 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>CFO 2 - Node System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+        background-color: #f8fafc;
+        -webkit-tap-highlight-color: transparent;
+        padding-bottom: 140px;
+      }
+
+      .turma-content {
+        transition: max-height 0.3s ease-in-out;
+        max-height: 0;
+        overflow: hidden;
+      }
+      .turma-content.open {
+        max-height: 8000px;
+      }
+
+      .status-pres {
+        border-left: 5px solid #22c55e;
+        background: white;
+      }
+      .status-ffna {
+        border-left: 5px solid #f59e0b;
+        background: #fffbeb;
+      }
+      .status-ffda {
+        border-left: 5px solid #3b82f6;
+        background: #eff6ff;
+      }
+
+      .check-box {
+        display: none;
+      }
+      body.selection-mode .check-box {
+        display: flex;
+      }
+      body.selection-mode .status-icon {
+        display: none;
+      }
+
+      .row-item.selected {
+        background-color: #e0f2fe !important;
+        border-color: #0ea5e9;
+      }
+      .row-item.selected .check-box {
+        background-color: #3b82f6;
+        border-color: #3b82f6;
+      }
+      .row-item.selected .check-icon {
+        display: block;
+      }
+
+      .tab-active {
+        border-bottom: 3px solid #3b82f6;
+        color: #1e3a8a;
+        font-weight: 800;
+      }
+      .tab-inactive {
+        color: #94a3b8;
+        font-weight: 600;
+      }
+      .page-hidden {
+        display: none;
+      }
+
+      .timeline-item {
+        border-left: 2px solid #e2e8f0;
+        padding-left: 1rem;
+        margin-left: 0.5rem;
+        position: relative;
+        padding-bottom: 1.5rem;
+      }
+      .timeline-item::before {
+        content: "";
+        position: absolute;
+        left: -5px;
+        top: 6px;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #cbd5e1;
+      }
+      .timeline-item.tag-SAIDA::before {
+        background: #3b82f6;
+      }
+      .timeline-item.tag-RETORNO::before {
+        background: #22c55e;
+      }
+      .timeline-item.tag-FF::before {
+        background: #f59e0b;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="bg-white sticky top-0 z-40 shadow-sm">
+      <div
+        class="bg-slate-900 text-white p-3 flex justify-between items-center"
+      >
+        <div>
+          <h1 class="font-bold text-lg">
+            CFO 2
+            <span
+              id="db-status"
+              class="text-[10px] bg-red-500 px-2 rounded ml-2"
+              >OFFLINE</span
+            >
+          </h1>
+          <p class="text-[10px] text-slate-400 font-bold uppercase">
+            Banco de Dados Node.js
+          </p>
+        </div>
+        <button
+          onclick="toggleSelectionMode()"
+          id="btn-mode"
+          class="bg-slate-700 px-3 py-1.5 rounded text-xs font-bold border border-slate-600 active:bg-slate-600 transition"
+        >
+          <i class="fa-solid fa-list-check mr-1"></i> SELEÇÃO
+        </button>
+      </div>
+
+      <div class="flex border-b border-slate-200 bg-white">
+        <button
+          onclick="setTab('efetivo')"
+          id="tab-efetivo"
+          class="flex-1 py-3 text-xs tab-active"
+        >
+          EFETIVO
+        </button>
+        <button
+          onclick="setTab('ff')"
+          id="tab-ff"
+          class="flex-1 py-3 text-xs tab-inactive relative"
+        >
+          FORA DE FORMA
+          <span
+            id="badge-ff"
+            class="hidden absolute top-2 right-4 bg-red-500 text-white text-[9px] w-4 h-4 rounded-full"
+            >0</span
+          >
+        </button>
+        <button
+          onclick="setTab('diario')"
+          id="tab-diario"
+          class="flex-1 py-3 text-xs tab-inactive"
+        >
+          DIÁRIO
+        </button>
+      </div>
+
+      <div
+        id="search-container"
+        class="p-2 bg-slate-50 border-b border-slate-200"
+      >
+        <div class="relative">
+          <input
+            type="text"
+            id="searchInput"
+            placeholder="Buscar..."
+            class="w-full pl-9 pr-3 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+          />
+          <i
+            class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"
+          ></i>
+          <button
+            onclick="clearSearch()"
+            id="btnClearSearch"
+            class="hidden absolute right-3 top-2.5 text-slate-400"
+          >
+            <i class="fa-solid fa-times"></i>
+          </button>
+        </div>
+      </div>
+
+      <div
+        class="grid grid-cols-3 gap-1 p-2 bg-white text-center text-[10px] border-b border-slate-100 shadow-sm"
+      >
+        <div
+          class="bg-green-50 p-1 rounded text-green-800 font-bold border border-green-100"
+        >
+          PRESENTE<br /><span id="stat-pres" class="text-lg">0</span>
+        </div>
+        <div
+          class="bg-amber-50 p-1 rounded text-amber-800 font-bold border border-amber-100"
+        >
+          FF INTERNO<br /><span id="stat-ffna" class="text-lg">0</span>
+        </div>
+        <div
+          class="bg-blue-50 p-1 rounded text-blue-800 font-bold border border-blue-100"
+        >
+          FF EXTERNO<br /><span id="stat-ffda" class="text-lg">0</span>
+        </div>
+      </div>
+    </header>
+
+    <div id="page-efetivo" class="p-2 space-y-2 pb-32"></div>
+    <div id="page-ff" class="page-hidden p-3 pb-32 space-y-3">
+      <div id="ff-container"></div>
+      <div id="no-ff" class="text-center py-10 text-slate-400 hidden">
+        <i class="fa-solid fa-check-circle text-4xl mb-2 text-green-200"></i>
+        <p>Efetivo Completo.</p>
+      </div>
+    </div>
+    <div id="page-diario" class="page-hidden p-4 pb-32">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="font-bold text-slate-700">Histórico</h3>
+        <button
+          onclick="clearLog()"
+          class="text-[10px] text-red-400 uppercase font-bold"
+        >
+          Limpar
+        </button>
+      </div>
+      <div id="log-container" class="space-y-0"></div>
+    </div>
+
+    <div
+      id="batch-bar"
+      class="fixed bottom-0 left-0 w-full bg-slate-900 p-3 z-50 transform translate-y-full transition-transform duration-300 shadow-xl border-t border-slate-700"
+    >
+      <div class="flex justify-between items-center mb-3 text-white px-1">
+        <span class="text-sm font-bold"
+          ><span id="sel-count" class="text-yellow-400 text-lg mr-1">0</span>
+          Selecionados</span
+        >
+        <button
+          onclick="toggleSelectionMode()"
+          class="text-xs text-slate-400 uppercase font-bold hover:text-white"
+        >
+          Cancelar
+        </button>
+      </div>
+      <div class="grid grid-cols-3 gap-2">
+        <button
+          onclick="openBatchReason('FF NA APM')"
+          class="bg-amber-500 text-white font-bold py-3 rounded text-[10px] flex flex-col items-center justify-center active:bg-amber-600"
+        >
+          <i class="fa-solid fa-ban text-lg mb-1"></i> FF INTERNO
+        </button>
+        <button
+          onclick="openBatchReason('FF DA APM')"
+          class="bg-blue-600 text-white font-bold py-3 rounded text-[10px] flex flex-col items-center justify-center active:bg-blue-700"
+        >
+          <i class="fa-solid fa-person-walking-arrow-right text-lg mb-1"></i> FF
+          EXTERNO
+        </button>
+        <button
+          onclick="applyBatchStatus('PRESENTE')"
+          class="bg-green-600 text-white font-bold py-3 rounded text-[10px] flex flex-col items-center justify-center active:bg-green-700"
+        >
+          <i class="fa-solid fa-check text-lg mb-1"></i> RETORNO
+        </button>
+      </div>
+    </div>
+
+    <div id="modal-individual" class="fixed inset-0 z-50 hidden">
+      <div
+        class="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        onclick="closeIndividual()"
+      ></div>
+      <div
+        class="absolute bottom-0 w-full md:max-w-sm md:left-1/2 md:-translate-x-1/2 md:bottom-auto md:top-1/2 md:-translate-y-1/2 bg-white rounded-t-2xl md:rounded-2xl shadow-2xl overflow-hidden animate-slide-up"
+      >
+        <div
+          class="bg-slate-50 p-4 border-b border-slate-100 flex justify-between items-start"
+        >
+          <div>
+            <h2 id="modal-name" class="font-bold text-lg text-slate-800">
+              Nome
+            </h2>
+            <p id="modal-sub" class="text-xs text-slate-500">Info</p>
+          </div>
+          <button
+            onclick="closeIndividual()"
+            class="bg-slate-200 rounded-full w-8 h-8 text-slate-500"
+          >
+            <i class="fa-solid fa-times"></i>
+          </button>
+        </div>
+        <div class="p-4 space-y-3">
+          <button
+            onclick="setStatus('PRESENTE')"
+            class="w-full flex items-center p-3 rounded-lg border border-slate-200 hover:bg-green-50 group"
+          >
+            <div
+              class="w-10 h-10 rounded-full bg-green-100 text-green-600 flex items-center justify-center mr-3"
+            >
+              <i class="fa-solid fa-check"></i>
+            </div>
+            <div class="text-left">
+              <div class="font-bold text-slate-700">PRESENTE / RETORNO</div>
+            </div>
+          </button>
+          <button
+            onclick="askReason('FF NA APM')"
+            class="w-full flex items-center p-3 rounded-lg border border-slate-200 hover:bg-amber-50 group"
+          >
+            <div
+              class="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mr-3"
+            >
+              <i class="fa-solid fa-ban"></i>
+            </div>
+            <div class="text-left">
+              <div class="font-bold text-slate-700">FF NA APM</div>
+              <div class="text-[10px] text-slate-400">
+                Enfermaria, Guarda...
+              </div>
+            </div>
+          </button>
+          <button
+            onclick="askReason('FF DA APM')"
+            class="w-full flex items-center p-3 rounded-lg border border-slate-200 hover:bg-blue-50 group"
+          >
+            <div
+              class="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mr-3"
+            >
+              <i class="fa-solid fa-person-walking-arrow-right"></i>
+            </div>
+            <div class="text-left">
+              <div class="font-bold text-slate-700">FF DA APM</div>
+              <div class="text-[10px] text-slate-400">Missão, Externo...</div>
+            </div>
+          </button>
+        </div>
+        <div
+          id="reason-area"
+          class="hidden p-4 bg-slate-100 border-t border-slate-200"
+        >
+          <label class="block text-xs font-bold text-slate-600 mb-1"
+            >Motivo / Destino:</label
+          >
+          <input
+            type="text"
+            id="input-reason"
+            class="w-full p-2 border rounded mb-2 text-sm font-bold"
+          />
+          <button
+            onclick="confirmStatusReason()"
+            class="w-full bg-slate-800 text-white font-bold py-2 rounded"
+          >
+            CONFIRMAR
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="modal-batch-reason"
+      class="fixed inset-0 z-[60] hidden flex items-center justify-center bg-black/70 p-4"
+    >
+      <div class="bg-white w-full max-w-sm rounded-xl p-5 shadow-2xl">
+        <h3 class="font-bold text-lg mb-1" id="batch-title">Ação em Lote</h3>
+        <p class="text-xs text-slate-500 mb-4">
+          Aplicando para
+          <span id="batch-total" class="font-bold text-blue-600">0</span>
+          militares.
+        </p>
+        <label
+          class="block text-xs font-bold text-slate-600 mb-1"
+          id="batch-label"
+          >Motivo / Local</label
+        >
+        <input
+          type="text"
+          id="batch-input"
+          class="w-full p-3 border border-slate-300 rounded-lg mb-4 font-bold"
+        />
+        <div class="flex gap-2">
+          <button
+            onclick="closeBatchModal()"
+            class="flex-1 py-3 text-slate-500 font-bold text-sm bg-slate-100 rounded-lg"
+          >
+            CANCELAR
+          </button>
+          <button
+            onclick="confirmBatchAction()"
+            class="flex-1 bg-blue-600 text-white font-bold py-3 rounded-lg text-sm"
+          >
+            CONFIRMAR
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const API_URL = "http://127.0.0.1:5000/api";
+
+      // --- DADOS COMPLETOS (205 MILITARES) ---
+      const rawData = [
+        {
+          turma: "ALPHA",
+          num: "1583236",
+          nome: "ABEL BATISTA DOS SANTOS",
+          warname: "CAD ABEL",
+        },
+        {
+          turma: "ALPHA",
+          num: "1879147",
+          nome: "ANDRE ANJOS ABREU",
+          warname: "CAD ABREU",
+        },
+        {
+          turma: "BRAVO",
+          num: "1879063",
+          nome: "ADRIANA COSTA SILVA",
+          warname: "CAD ADRIANA",
+        },
+        {
+          turma: "DELTA",
+          num: "1451871",
+          nome: "AFRANIO ADRIANO DE SOUZA",
+          warname: "CAD ADRIANO",
+        },
+        {
+          turma: "BRAVO",
+          num: "1879220",
+          nome: "ISAC SILVA ALBUQUERQUE",
+          warname: "CAD ALBUQUERQUE",
+        },
+        {
+          turma: "DELTA",
+          num: "1626522",
+          nome: "WELLINGTON DE ALCÂNTARA BATISTA",
+          warname: "CAD ALCÂNTARA",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1816180",
+          nome: "GUILHERME ALENCAR FONSECA",
+          warname: "CAD ALENCAR",
+        },
+        {
+          turma: "ALPHA",
+          num: "1879170",
+          nome: "ALEXSANDER IKARO OLIVEIRA SANTOS",
+          warname: "CAD ALEXSANDER",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1798677",
+          nome: "ALINE DE SOUZA MELLO",
+          warname: "CAD ALINE",
+        },
+        {
+          turma: "ECHO",
+          num: "1742444",
+          nome: "AMANDA SABER SILVA",
+          warname: "CAD AMANDA",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1538230",
+          nome: "WEDNY SANTOS AMARAL",
+          warname: "CAD AMARAL",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1879006",
+          nome: "GABRIEL HENRIQUE DE AMORIM SANTANA",
+          warname: "CAD AMORIM",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1878636",
+          nome: "ANA CAROLINA FIÚZA LOPES",
+          warname: "CAD ANA CAROLINA",
+        },
+        {
+          turma: "DELTA",
+          num: "1812825",
+          nome: "ANA LUIZA TOMAZ",
+          warname: "CAD ANA LUIZA",
+        },
+        {
+          turma: "DELTA",
+          num: "1878867",
+          nome: "GABRIEL HENRIQUE RIBEIRO ANDRADE",
+          warname: "CAD ANDRADE",
+        },
+        {
+          turma: "ALPHA",
+          num: "1543065",
+          nome: "ANDRÉ VICTOR DE SOUZA DOS SANTOS",
+          warname: "CAD ANDRÉ",
+        },
+        {
+          turma: "ECHO",
+          num: "1879105",
+          nome: "APOLO CUSTODIO MACIEL",
+          warname: "CAD APOLO",
+        },
+        {
+          turma: "BRAVO",
+          num: "1817030",
+          nome: "PEDRO HENRIQUE RODRIGUES DE ARÊDES",
+          warname: "CAD AREDES",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1684653",
+          nome: "ARNON ARAÚJO LOBO",
+          warname: "CAD ARNON",
+        },
+        {
+          turma: "DELTA",
+          num: "1561604",
+          nome: "AUGUSTO SOARES DOS ANJOS",
+          warname: "CAD AUGUSTO",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1810027",
+          nome: "IGOR AZEVEDO BARBOSA",
+          warname: "CAD AZEVEDO",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1809300",
+          nome: "ISAC MOREIRA BARCELOS",
+          warname: "CAD BARCELOS",
+        },
+        {
+          turma: "ECHO",
+          num: "1824523",
+          nome: "RAFAEL MESQUITA BATISTON CRUZ",
+          warname: "CAD BATISTON",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1560598",
+          nome: "BELMÁRIO BELLO SANTOS JÚNIOR",
+          warname: "CAD BELMÁRIO",
+        },
+        {
+          turma: "DELTA",
+          num: "1879360",
+          nome: "MARCELLO BRAGA DE OLIVEIRA",
+          warname: "CAD BRAGA",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1689199",
+          nome: "BRUNA MENDES DE SOUSA",
+          warname: "CAD BRUNA",
+        },
+        {
+          turma: "BRAVO",
+          num: "1504323",
+          nome: "WANDERSON BRUNO AMARAL DA SILVA",
+          warname: "CAD BRUNO",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1439934",
+          nome: "BRUNO DANTAS SILVA MARINHO",
+          warname: "CAD BRUNO DANTAS",
+        },
+        {
+          turma: "BRAVO",
+          num: "1516673",
+          nome: "SERGIO CARLOS DE OLIVEIRA FILHO",
+          warname: "CAD CARLOS",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1401876",
+          nome: "CARLOS EDUARDO SOARES LIMA DE LANA",
+          warname: "CAD CARLOS LANA",
+        },
+        {
+          turma: "DELTA",
+          num: "1713064",
+          nome: "CAROLINE ZANDONADI GUIMARÃES",
+          warname: "CAD CAROLINE",
+        },
+        {
+          turma: "BRAVO",
+          num: "1631381",
+          nome: "JÚLIO CÉSAR DE ARAÚJO",
+          warname: "CAD CÉSAR",
+        },
+        {
+          turma: "BRAVO",
+          num: "1537000",
+          nome: "CLAUDIA ALVES RIBEIRO",
+          warname: "CAD CLÁUDIA",
+        },
+        {
+          turma: "BRAVO",
+          num: "1485515",
+          nome: "MARCIUS VINICIUS CORDELLI DE ANDRADE",
+          warname: "CAD CORDELLI",
+        },
+        {
+          turma: "BRAVO",
+          num: "1879048",
+          nome: "RODRIGO CAMILO DE SOUZA COSTA",
+          warname: "CAD COSTA",
+        },
+        {
+          turma: "BRAVO",
+          num: "1618404",
+          nome: "FRANTISCOLLE DIEGO RODRIGUES DO COUTO",
+          warname: "CAD COUTO",
+        },
+        {
+          turma: "ALPHA",
+          num: "1878933",
+          nome: "PÉROLA CRISTIE ROSA FELIX",
+          warname: "CAD CRISTIE",
+        },
+        {
+          turma: "ALPHA",
+          num: "1684398",
+          nome: "GUILHERME FERREIRA CUSTÓDIO",
+          warname: "CAD CUSTÓDIO",
+        },
+        {
+          turma: "ECHO",
+          num: "1385947",
+          nome: "DANIEL CRISTIANUS GONÇALVES",
+          warname: "CAD DANIEL",
+        },
+        {
+          turma: "DELTA",
+          num: "1683333",
+          nome: "DANIEL CARVALHO RIBEIRO",
+          warname: "CAD DANIEL RIBEIRO",
+        },
+        {
+          turma: "ALPHA",
+          num: "1714393",
+          nome: "PAULA DANIELLE SOUSA",
+          warname: "CAD DANIELLE SOUSA",
+        },
+        {
+          turma: "ECHO",
+          num: "1866862",
+          nome: "DANUSA VIANA DIAS",
+          warname: "CAD DANUSA",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1584168",
+          nome: "DALBERTH DARWIN DA SILVA",
+          warname: "CAD DARWIN",
+        },
+        {
+          turma: "ALPHA",
+          num: "1570969",
+          nome: "GUSTAVO ALVES DE PAULA",
+          warname: "CAD DE PAULA",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1716356",
+          nome: "DEIVIDSON GOMES PINHEIRO",
+          warname: "CAD DEIVIDSON",
+        },
+        {
+          turma: "ECHO",
+          num: "1631845",
+          nome: "DIEGO FONSECA DA SILVA",
+          warname: "CAD DIEGO",
+        },
+        {
+          turma: "ECHO",
+          num: "1584333",
+          nome: "DIEGO RODRIGUES DA SILVA VIANA",
+          warname: "CAD DIEGO SILVA",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1699586",
+          nome: "DINEY CESAR DE OLIVEIRA",
+          warname: "CAD DINEY",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1588482",
+          nome: "EDUARDO DE OLIVEIRA DORNELAS",
+          warname: "CAD DORNELAS",
+        },
+        {
+          turma: "DELTA",
+          num: "1878982",
+          nome: "DOUGLAS SILVA MARTINS",
+          warname: "CAD DOUGLAS MARTINS",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1686823",
+          nome: "ELGLISTON DUARTE BARBOSA DOS SANTOS",
+          warname: "CAD DUARTE",
+        },
+        {
+          turma: "ALPHA",
+          num: "1517739",
+          nome: "RAFAEL RYU DUTRA MIYAMOTO",
+          warname: "CAD DUTRA",
+        },
+        {
+          turma: "BRAVO",
+          num: "1507490",
+          nome: "EDCELIO FRAGA CORRÊA DA SILVA",
+          warname: "CAD EDCELIO",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1615954",
+          nome: "ÉDER ALVES MONTEIRO",
+          warname: "CAD ÉDER MONTEIRO",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1583434",
+          nome: "EDGAR WHYDAN DE OLIVEIRA",
+          warname: "CAD EDGAR",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1741503",
+          nome: "EDUARDO MAGALHÃES SIRIANI",
+          warname: "CAD EDUARDO",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1517721",
+          nome: "EDUARDO DIAS MENDES",
+          warname: "CAD EDUARDO DIAS",
+        },
+        {
+          turma: "ALPHA",
+          num: "1522127",
+          nome: "ELISEU TEIXEIRA MOURÃO",
+          warname: "CAD ELISEU",
+        },
+        {
+          turma: "ALPHA",
+          num: "1743178",
+          nome: "EMANUELLE FREITAS ALVES",
+          warname: "CAD EMANUELLE",
+        },
+        {
+          turma: "ECHO",
+          num: "1491802",
+          nome: "RAPHAEL BRAGA LOPES ESTEVES",
+          warname: "CAD ESTEVES",
+        },
+        {
+          turma: "ALPHA",
+          num: "1451855",
+          nome: "EZEQUIAS ROCHA DOS SANTOS OLIVEIRA",
+          warname: "CAD EZEQUIAS",
+        },
+        {
+          turma: "ALPHA",
+          num: "1878966",
+          nome: "GABRIEL FAGUNDES DE SOUZA",
+          warname: "CAD FAGUNDES",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1743095",
+          nome: "ROZYANE FELÍCIA DA SILVA",
+          warname: "CAD FELÍCIA",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1878701",
+          nome: "FELIPE SANTANA ALVES BREGUEZ",
+          warname: "CAD FELIPE",
+        },
+        {
+          turma: "ECHO",
+          num: "1781830",
+          nome: "FELIPE FERREIRA DINIZ",
+          warname: "CAD FELIPE DINIZ",
+        },
+        {
+          turma: "ECHO",
+          num: "1879386",
+          nome: "FELIPE LOPES DE SOUZA",
+          warname: "CAD FELIPE LOPES",
+        },
+        {
+          turma: "DELTA",
+          num: "1486513",
+          nome: "WALISSON MORAES FERNANDES",
+          warname: "CAD FERNANDES",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1595537",
+          nome: "FLAVIO DIAS DE CARVALHO",
+          warname: "CAD FLAVIO",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1560481",
+          nome: "FREDERICO GUILHERME ESTEVES SUBTIL",
+          warname: "CAD FREDERICO",
+        },
+        {
+          turma: "DELTA",
+          num: "1558725",
+          nome: "CLAUDIO GABRIEL SOUZA OLIVEIRA",
+          warname: "CAD GABRIEL",
+        },
+        {
+          turma: "ALPHA",
+          num: "1753672",
+          nome: "GABRIELA RODRIGUES SILVA",
+          warname: "CAD GABRIELA",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1624725",
+          nome: "RODSON GAUDENCIO DA ROCHA",
+          warname: "CAD GAUDENCIO",
+        },
+        {
+          turma: "ECHO",
+          num: "1878818",
+          nome: "GEOVANNA MOREIRA PROENÇA",
+          warname: "CAD GEOVANNA",
+        },
+        {
+          turma: "ECHO",
+          num: "1494681",
+          nome: "EDERSON DE FRANÇA GODOY",
+          warname: "CAD GODOY",
+        },
+        {
+          turma: "DELTA",
+          num: "1747393",
+          nome: "GRAZIELLY LEMOS MEDEIROS",
+          warname: "CAD GRAZIELLY",
+        },
+        {
+          turma: "ECHO",
+          num: "1427889",
+          nome: "GRIMALDO DIAS DE CARVALHO JUNIOR",
+          warname: "CAD GRIMALDO",
+        },
+        {
+          turma: "DELTA",
+          num: "1687078",
+          nome: "PABLO MIGUEL GONÇALVES GUEDES",
+          warname: "CAD GUEDES",
+        },
+        {
+          turma: "BRAVO",
+          num: "1684281",
+          nome: "GUILHERME JOAQUIM RIBEIRO",
+          warname: "CAD GUILHERME",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1879014",
+          nome: "RODRIGO ROCHA GUIMARÃES FILHO",
+          warname: "CAD GUIMARÃES",
+        },
+        {
+          turma: "BRAVO",
+          num: "1683192",
+          nome: "GUSTAVO LEONARDO DA COSTA TOMAZ",
+          warname: "CAD GUSTAVO COSTA",
+        },
+        {
+          turma: "DELTA",
+          num: "1879113",
+          nome: "HEBERTY RIBEIRO BORBONIN",
+          warname: "CAD HEBERTY",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1489673",
+          nome: "HELOYANA ELIZABETH DA SILVA",
+          warname: "CAD HELOYANA",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1571728",
+          nome: "RICARDO DUARTE HORTA FILHO",
+          warname: "CAD HORTA",
+        },
+        {
+          turma: "BRAVO",
+          num: "1620038",
+          nome: "HUMBERTO ALGER BOATO",
+          warname: "CAD HUMBERTO",
+        },
+        {
+          turma: "ECHO",
+          num: "1455641",
+          nome: "ICARO FERNANDES TEIXEIRA",
+          warname: "CAD ICARO",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1879154",
+          nome: "IGOR FELIPE MONTEIRO ROCHA",
+          warname: "CAD IGOR",
+        },
+        {
+          turma: "BRAVO",
+          num: "1781137",
+          nome: "ISABEL MARIA MARQUES DA SILVA",
+          warname: "CAD ISABEL",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1879071",
+          nome: "ISABELLE NOE LIMA DAMASCENO MARINS",
+          warname: "CAD ISABELLE",
+        },
+        {
+          turma: "ECHO",
+          num: "1696616",
+          nome: "JACKSON AJEFFERSON AMARAL MOREIRS",
+          warname: "CAD JACKSON",
+        },
+        {
+          turma: "ALPHA",
+          num: "1564897",
+          nome: "JOÃO PAULO JACOB DA SILVA",
+          warname: "CAD JACOB",
+        },
+        {
+          turma: "ALPHA",
+          num: "1879295",
+          nome: "JEAN MARCOS FERNANDES",
+          warname: "CAD JEAN",
+        },
+        {
+          turma: "ECHO",
+          num: "1340561",
+          nome: "JEAN PAULO DOS REIS",
+          warname: "CAD JEAN REIS",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1629609",
+          nome: "JEREMIAS JÔNATAS DE FREITAS",
+          warname: "CAD JEREMIAS",
+        },
+        {
+          turma: "ALPHA",
+          num: "1879196",
+          nome: "JOÃO VITOR DE SOUSA ALMEIDA",
+          warname: "CAD JOÃO VÍTOR",
+        },
+        {
+          turma: "DELTA",
+          num: "1572411",
+          nome: "JONATAN CESAR SANTOS BARROS",
+          warname: "CAD JONATAN",
+        },
+        {
+          turma: "DELTA",
+          num: "1387844",
+          nome: "JORGE LUIZ MACEDO DE FREITAS",
+          warname: "CAD JORGE",
+        },
+        {
+          turma: "DELTA",
+          num: "1879261",
+          nome: "JOSÉ MÁRIO LUIZ COSTA",
+          warname: "CAD JOSÉ MÁRIO",
+        },
+        {
+          turma: "ALPHA",
+          num: "1706084",
+          nome: "JÚLIO CÉSAR DIAS VELOSO",
+          warname: "CAD JÚLIO CÉSAR",
+        },
+        {
+          turma: "BRAVO",
+          num: "1811082",
+          nome: "KAREN DANTAS ARAÚJO",
+          warname: "CAD KAREN",
+        },
+        {
+          turma: "ECHO",
+          num: "1793900",
+          nome: "KEVIN PEDRO DE CARVALHO",
+          warname: "CAD KEVIN",
+        },
+        {
+          turma: "BRAVO",
+          num: "1879089",
+          nome: "CESAR LAZZARINI PALAZZO ROLLA",
+          warname: "CAD LAZZARINI",
+        },
+        {
+          turma: "ECHO",
+          num: "1787720",
+          nome: "VICTOR MATHEUS LEAL SANTOS",
+          warname: "CAD LEAL",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1689827",
+          nome: "LEANDRO DE AZEVEDO",
+          warname: "CAD LEANDRO",
+        },
+        {
+          turma: "ECHO",
+          num: "1506062",
+          nome: "LEONARDO MEDEIROS RIBEIRO",
+          warname: "CAD LEONARDO",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1634054",
+          nome: "LIDIANE NEVES NOGUEIRA",
+          warname: "CAD LIDIANE",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1560697",
+          nome: "THIAGO DE FIGUEIREDO LINHARES",
+          warname: "CAD LINHARES",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1619006",
+          nome: "GUILHERME MARTINS LOPES",
+          warname: "CAD LOPES",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1755248",
+          nome: "LUAN ICARO SANTOS DE OLIVEIRA",
+          warname: "CAD LUAN",
+        },
+        {
+          turma: "ECHO",
+          num: "1703305",
+          nome: "LUCAS RODRIGUES QUATORZE VOLTAS",
+          warname: "CAD LUCAS",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1733781",
+          nome: "LUCAS VINICIUS BARBOSA FERREIRA",
+          warname: "CAD LUCAS BARBOSA",
+        },
+        {
+          turma: "ECHO",
+          num: "1879329",
+          nome: "LUCAS RODRIGUES AZEVEDO COELHO",
+          warname: "CAD LUCAS COELHO",
+        },
+        {
+          turma: "DELTA",
+          num: "1788389",
+          nome: "LUCAS HUMBERTO SOUSA DIAS",
+          warname: "CAD LUCAS DIAS",
+        },
+        {
+          turma: "BRAVO",
+          num: "1878958",
+          nome: "LUIZ GUSTAVO VIEIRA SILVA",
+          warname: "CAD LUIZ GUSTAVO",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1462696",
+          nome: "LUIZ EDUARDO DA SILVA",
+          warname: "CAD LUIZ SILVA",
+        },
+        {
+          turma: "ECHO",
+          num: "1615434",
+          nome: "ALEXANDRE MAGALHÃES DO NASCIMENTO",
+          warname: "CAD MAGALHÃES",
+        },
+        {
+          turma: "ECHO",
+          num: "1620707",
+          nome: "JULIANO BENEDITO MAGALHÃES SILVA",
+          warname: "CAD MAGALHÃES SILVA",
+        },
+        {
+          turma: "DELTA",
+          num: "1574904",
+          nome: "ANDERSON DONIZETI MARÇAL",
+          warname: "CAD MARÇAL",
+        },
+        {
+          turma: "DELTA",
+          num: "1817170",
+          nome: "MARCELO MENDES PINTO",
+          warname: "CAD MARCELO MENDES",
+        },
+        {
+          turma: "DELTA",
+          num: "1632686",
+          nome: "MÁRCIO GUEDES ZAMPERLIM",
+          warname: "CAD MÁRCIO",
+        },
+        {
+          turma: "DELTA",
+          num: "1685668",
+          nome: "MARCIO GABRIEL MENDES LOPES",
+          warname: "CAD MÁRCIO GABRIEL",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1633031",
+          nome: "MARCOS PAULO MENDES DOS SANTOS",
+          warname: "CAD MARCOS PAULO",
+        },
+        {
+          turma: "BRAVO",
+          num: "1878990",
+          nome: "MARIA LUIZA STEFANNY MACHADO",
+          warname: "CAD MARIA LUIZA",
+        },
+        {
+          turma: "ALPHA",
+          num: "1513076",
+          nome: "MARLON CESAR LUCAS MOTA",
+          warname: "CAD MARLON",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1403385",
+          nome: "EVANDRO MARQUES FERNANDES",
+          warname: "CAD MARQUES",
+        },
+        {
+          turma: "ECHO",
+          num: "1543867",
+          nome: "EDUARDO WALLACE MARTINI",
+          warname: "CAD MARTINI",
+        },
+        {
+          turma: "BRAVO",
+          num: "1688027",
+          nome: "RODRIGO MARTINS PEREIRA RODRIGUES",
+          warname: "CAD MARTINS",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1827849",
+          nome: "ARTHUR MARTINS DE OLIVEIRA",
+          warname: "CAD MARTINS OLIVEIRA",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1713528",
+          nome: "ALLEXANDRE MASSOTE GIBRAM",
+          warname: "CAD MASSOTE",
+        },
+        {
+          turma: "ALPHA",
+          num: "1619691",
+          nome: "JADSON PEREIRA MATOS",
+          warname: "CAD MATOS",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1808831",
+          nome: "MAURO LÚCIO DA SILVA JÚNIOR",
+          warname: "CAD MAURO",
+        },
+        {
+          turma: "ECHO",
+          num: "1561711",
+          nome: "MAYKON RIBEIRO CARDOSO",
+          warname: "CAD MAYKON",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1616200",
+          nome: "ANTÔNIO DE SOUZA MEDINA",
+          warname: "CAD MEDINA",
+        },
+        {
+          turma: "BRAVO",
+          num: "1561117",
+          nome: "BRUNO DE MELO SILVA",
+          warname: "CAD MELO",
+        },
+        {
+          turma: "DELTA",
+          num: "1423342",
+          nome: "LUIZ EDUARDO MENDES LIMA",
+          warname: "CAD MENDES",
+        },
+        {
+          turma: "BRAVO",
+          num: "1878909",
+          nome: "MIGUEL ANGELO DURÇO VIEIRA CINTRA",
+          warname: "CAD MIGUEL",
+        },
+        {
+          turma: "ECHO",
+          num: "1879188",
+          nome: "JOAO PEDRO CORDEIRO DE FREITAS MONTEIRO",
+          warname: "CAD MONTEIRO",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1591858",
+          nome: "JOSÉ ANTÔNIO DE MOURA",
+          warname: "CAD MOURA",
+        },
+        {
+          turma: "BRAVO",
+          num: "1878974",
+          nome: "FABIO LUCAS SILVA NASCIMENTO",
+          warname: "CAD NASCIMENTO",
+        },
+        {
+          turma: "ALPHA",
+          num: "1817865",
+          nome: "JOSÉ NATALINO PEREIRA",
+          warname: "CAD NATALINO",
+        },
+        {
+          turma: "ALPHA",
+          num: "1878925",
+          nome: "NATHÁLIA CRISTINA NUNES BORGES DE OLIVEIRA",
+          warname: "CAD NATHÁLIA",
+        },
+        {
+          turma: "ECHO",
+          num: "1689686",
+          nome: "NAYARA SIQUEIRA ALVES",
+          warname: "CAD NAYARA",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1559137",
+          nome: "RAFAEL PEREIRA NAZÁRIO",
+          warname: "CAD NAZÁRIO",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1704295",
+          nome: "DHIEGO NESTOR FIGUEIRÓ PINA",
+          warname: "CAD NESTOR",
+        },
+        {
+          turma: "ECHO",
+          num: "1704725",
+          nome: "CLINTON NEYDER LEITE JUNIOR",
+          warname: "CAD NEYDER",
+        },
+        {
+          turma: "BRAVO",
+          num: "1813906",
+          nome: "MAXWILLY ALAN DA COSTA NOLASCO",
+          warname: "CAD NOLASCO",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1794353",
+          nome: "DOUGLAS GABRIEL NONATO FRAGA",
+          warname: "CAD NONATO",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1634500",
+          nome: "NÚBIA QUINTELA DE OLIVEIRA",
+          warname: "CAD NÚBIA",
+        },
+        {
+          turma: "ECHO",
+          num: "1623115",
+          nome: "PAULO OCTÁVIO DA COSTA SOUZA",
+          warname: "CAD OCTÁVIO",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1562479",
+          nome: "MATTHAEUS PHILIPPE DE OLIVEIRA COSTA",
+          warname: "CAD OLIVEIRA COSTA",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1878834",
+          nome: "GABRIEL SANTOS DE OLIVEIRA LOPES",
+          warname: "CAD OLIVEIRA LOPES",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1511294",
+          nome: "FERNANDO OMAR LOPES DE SILVA",
+          warname: "CAD OMAR",
+        },
+        {
+          turma: "ALPHA",
+          num: "1779313",
+          nome: "PEDRO MADUREIRA OTTONI DA SILVEIRA",
+          warname: "CAD OTTONI",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1687490",
+          nome: "PABLO CESAR SILVA E SOUZA",
+          warname: "CAD PABLO CESAR",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1461029",
+          nome: "RIVAN ALVES PACHECO",
+          warname: "CAD PACHECO",
+        },
+        {
+          turma: "DELTA",
+          num: "1587211",
+          nome: "PATRICK AUGUSTO SILVA",
+          warname: "CAD PATRICK",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1879352",
+          nome: "MARCOS PAULO PIMENTA BINS",
+          warname: "CAD PAULO PIMENTA",
+        },
+        {
+          turma: "DELTA",
+          num: "1487776",
+          nome: "LUIZ FERNANDO PIMENTEL TOCANTINS",
+          warname: "CAD PIMENTEL",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1710425",
+          nome: "LUIZ GUILHERME PINHO ASSUNÇÃO",
+          warname: "CAD PINHO",
+        },
+        {
+          turma: "BRAVO",
+          num: "1742402",
+          nome: "DIEGO DE OLIVEIRA PIRES",
+          warname: "CAD PIRES",
+        },
+        {
+          turma: "DELTA",
+          num: "1796671",
+          nome: "PRISCILA SILVA FREITAS",
+          warname: "CAD PRISCILA",
+        },
+        {
+          turma: "ALPHA",
+          num: "1589621",
+          nome: "RAFAEL LUCAS PEREIRA",
+          warname: "CAD RAFAEL PEREIRA",
+        },
+        {
+          turma: "DELTA",
+          num: "1879055",
+          nome: "RAMON NUNES MELO",
+          warname: "CAD RAMON",
+        },
+        {
+          turma: "BRAVO",
+          num: "1633486",
+          nome: "RENAN GIOVANNONI MARTINS",
+          warname: "CAD RENAN",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1686948",
+          nome: "JOSÉ RENATO PEREIRA DA COSTA",
+          warname: "CAD RENATO",
+        },
+        {
+          turma: "ALPHA",
+          num: "1687706",
+          nome: "JESUS RIBEIRO AMARAL",
+          warname: "CAD RIBEIRO",
+        },
+        {
+          turma: "ECHO",
+          num: "1878917",
+          nome: "ROBERTA PROCACI KNOP",
+          warname: "CAD ROBERTA",
+        },
+        {
+          turma: "ECHO",
+          num: "1624204",
+          nome: "RENATO ROCHA PEREIRA",
+          warname: "CAD ROCHA",
+        },
+        {
+          turma: "ECHO",
+          num: "1588383",
+          nome: "RODRIGO BASTOS FONSECA",
+          warname: "CAD RODRIGO",
+        },
+        {
+          turma: "DELTA",
+          num: "1462456",
+          nome: "ANTONIO RONALDO DE FIGUEIREDO",
+          warname: "CAD RONALDO",
+        },
+        {
+          turma: "DELTA",
+          num: "1811678",
+          nome: "RUTE SOUZA FERREIRA",
+          warname: "CAD RUTE",
+        },
+        {
+          turma: "BRAVO",
+          num: "1688753",
+          nome: "LUCAS SALES DA SILVA",
+          warname: "CAD SALES",
+        },
+        {
+          turma: "BRAVO",
+          num: "1416841",
+          nome: "SAMUEL DE SOUZA CHAVES",
+          warname: "CAD SAMUEL",
+        },
+        {
+          turma: "ALPHA",
+          num: "1476753",
+          nome: "MAGNO DA SILVA SANTIAGO",
+          warname: "CAD SANTIAGO",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1808717",
+          nome: "SARA SOPHIA OLIVEIRA VIEIRA",
+          warname: "CAD SARA",
+        },
+        {
+          turma: "ALPHA",
+          num: "1879311",
+          nome: "LUCAS SIBIEM RODRIGUES",
+          warname: "CAD SIBIEM",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1444561",
+          nome: "EDIVALDO SOARES SILVA",
+          warname: "CAD SOARES",
+        },
+        {
+          turma: "ECHO",
+          num: "1408327",
+          nome: "WILIAM DE SOUZA RODRIGUES",
+          warname: "CAD SOUZA RODRIGUES",
+        },
+        {
+          turma: "DELTA",
+          num: "1454453",
+          nome: "STEFAN RAMON TAVARES",
+          warname: "CAD TAVARES",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1629872",
+          nome: "RODRIGO TEIXEIRA BRITO",
+          warname: "CAD TEIXEIRA",
+        },
+        {
+          turma: "BRAVO",
+          num: "1691278",
+          nome: "THADEU PINTO DE OLIVEIRA JUNIOR",
+          warname: "CAD THADEU JUNIOR",
+        },
+        {
+          turma: "BRAVO",
+          num: "1689116",
+          nome: "THIAGO LEMOS RODRIGUES",
+          warname: "CAD THIAGO LEMOS",
+        },
+        {
+          turma: "ALPHA",
+          num: "1625391",
+          nome: "THIAGO DANIÃO DA SILVA",
+          warname: "CAD THIAGO SILVA",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1545060",
+          nome: "THOMAS FELIPE DA SILVA",
+          warname: "CAD THOMAS FELIPE",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1493980",
+          nome: "TIAGO MARTINS DE OLIVEIRA",
+          warname: "CAD TIAGO OLIVEIRA",
+        },
+        {
+          turma: "ECHO",
+          num: "1879030",
+          nome: "TOMAZ HENRIQUE RIBEIRO SANTOS",
+          warname: "CAD TOMAZ SANTOS",
+        },
+        {
+          turma: "ALPHA",
+          num: "1616754",
+          nome: "DIEGO BATISTA FREIRE TORRES",
+          warname: "CAD TORRES",
+        },
+        {
+          turma: "BRAVO",
+          num: "1878941",
+          nome: "RAMON TEIXEIRA TURINI",
+          warname: "CAD TURINI",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1736982",
+          nome: "ROMÁRIO DA SILVA DO VALE SOBRINHO",
+          warname: "CAD VALE",
+        },
+        {
+          turma: "ECHO",
+          num: "1879410",
+          nome: "VITOR VASCONCELLOS ALVES",
+          warname: "CAD VASCONCELLOS",
+        },
+        {
+          turma: "BRAVO",
+          num: "1689793",
+          nome: "RICARDO DINIZ GUIMARÃES VENTURA",
+          warname: "CAD VENTURA",
+        },
+        {
+          turma: "DELTA",
+          num: "1700624",
+          nome: "CLEVERSON HENRIQUE VIANA PORTO",
+          warname: "CAD VIANA",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1879345",
+          nome: "JULIO CEZAR VICENTE DOS SANTOS",
+          warname: "CAD VICENTE",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1698562",
+          nome: "DIOGO VICTOR DE OLIVEIRA",
+          warname: "CAD VICTOR",
+        },
+        {
+          turma: "CHARLIE",
+          num: "1699529",
+          nome: "ANDRÉ PEREIRA RAMOS VIEIRA",
+          warname: "CAD VIEIRA",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1735539",
+          nome: "VIKTOR SANTOS SOUZA",
+          warname: "CAD VIKTOR SANTOS",
+        },
+        {
+          turma: "DELTA",
+          num: "1781970",
+          nome: "LEANDRO DUARTE VINHAL",
+          warname: "CAD VINHAL",
+        },
+        {
+          turma: "ALPHA",
+          num: "1690718",
+          nome: "VINÍCIUS JOSÉ SOUSA FERREIRA",
+          warname: "CAD VINÍCIUS SOUSA",
+        },
+        {
+          turma: "FOXTROT",
+          num: "1856103",
+          nome: "VITOR ANDRADE SILVA",
+          warname: "CAD VITOR ANDRADE",
+        },
+        {
+          turma: "BRAVO",
+          num: "1798214",
+          nome: "WALBER PIASSI",
+          warname: "CAD WALBER",
+        },
+        {
+          turma: "DELTA",
+          num: "1791730",
+          nome: "WANDERSON VASCONCELOS ARANTE",
+          warname: "CAD WANDERSON",
+        },
+        {
+          turma: "ALPHA",
+          num: "1700640",
+          nome: "WARLEY DIAS DE JESUS",
+          warname: "CAD WARLEY",
+        },
+        {
+          turma: "ALPHA",
+          num: "1590991",
+          nome: "WENDERSON MARCELINO DA SILVA",
+          warname: "CAD WENDERSON",
+        },
+        {
+          turma: "BRAVO",
+          num: "1455195",
+          nome: "JEFFERSON WILLIAM NORBERTO SILVA",
+          warname: "CAD WILLIAM",
+        },
+        {
+          turma: "ALPHA",
+          num: "1450774",
+          nome: "ADÃO WILLIAN VIEIRA SOARES",
+          warname: "CAD WILLIAN VIEIRA",
+        },
+        {
+          turma: "DELTA",
+          num: "1825348",
+          nome: "YAGO SILVA CAMELO",
+          warname: "CAD YAGO",
+        },
+      ];
+
+      let db = {};
+      let globalLog = [];
+      let isSelectionMode = false;
+      let selectedIds = new Set();
+      let currentId = null;
+      let tempStatus = null;
+      let openTurmas = new Set();
+      let batchStatusTarget = null;
+      let expandedGroups = new Set();
+
+      async function init() {
+        try {
+          const res = await fetch(`${API_URL}/load`);
+          if (res.ok) {
+            const data = await res.json();
+            db = data.efetivo;
+            globalLog = data.log;
+            document.getElementById("db-status").innerText = "ONLINE";
+            document.getElementById("db-status").className =
+              "text-[10px] bg-green-500 px-2 rounded ml-2 text-white font-bold";
+          }
+        } catch (e) {
+          console.warn("Server offline");
+        }
+
+        rawData.forEach((m) => {
+          if (!db[m.num])
+            db[m.num] = {
+              ...m,
+              status: "PRESENTE",
+              detail: "",
+              history: [],
+              lastUpdate: null,
+              lastExitTime: null,
+            };
+        });
+
+        renderRoster();
+        updateStats();
+      }
+
+      async function save() {
+        updateStats();
+        try {
+          await fetch(`${API_URL}/save`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ efetivo: db, log: globalLog }),
+          });
+        } catch (e) {
+          alert("Erro ao salvar no servidor.");
+        }
+      }
+
+      // --- RENDER ---
+      function renderRoster() {
+        const container = document.getElementById("page-efetivo");
+        container.innerHTML = "";
+        const filter = document
+          .getElementById("searchInput")
+          .value.toLowerCase();
+        const groups = {
+          ALPHA: [],
+          BRAVO: [],
+          CHARLIE: [],
+          DELTA: [],
+          ECHO: [],
+          FOXTROT: [],
+        };
+
+        Object.values(db).forEach((m) => {
+          if (filter && !m.warname.toLowerCase().includes(filter)) return;
+          if (groups[m.turma]) groups[m.turma].push(m);
+        });
+
+        Object.keys(groups).forEach((turma) => {
+          if (groups[turma].length === 0) return;
+          groups[turma].sort((a, b) => a.warname.localeCompare(b.warname));
+          const isOpen = openTurmas.has(turma) || filter.length > 0;
+          const colors = {
+            ALPHA: "bg-slate-800 text-white",
+            BRAVO: "bg-blue-900 text-white",
+            CHARLIE: "bg-emerald-800 text-white",
+            DELTA: "bg-indigo-900 text-white",
+            ECHO: "bg-cyan-800 text-white",
+            FOXTROT: "bg-purple-900 text-white",
+          };
+
+          container.innerHTML += `
+                <div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-3 flex justify-between items-center cursor-pointer ${
+                      colors[turma]
+                    }" onclick="toggleTurma(this, '${turma}')">
+                        <h3 class="font-bold text-sm flex items-center gap-2"><i class="fa-solid fa-chevron-right text-[10px] transition-transform ${
+                          isOpen ? "rotate-90" : ""
+                        }"></i> TURMA ${turma}</h3>
+                        <span class="text-[10px] bg-white/20 px-2 py-0.5 rounded">${
+                          groups[turma].length
+                        }</span>
+                    </div>
+                    <div class="turma-content ${
+                      isOpen ? "open" : ""
+                    }"><div class="divide-y divide-slate-100">${groups[turma]
+            .map((m) => createRow(m))
+            .join("")}</div></div>
+                </div>`;
+        });
+      }
+
+      function createRow(m) {
+        let border = "status-pres",
+          status = "PRESENTE",
+          sub = "";
+        if (m.status === "FF NA APM") {
+          border = "status-ffna";
+          status = "FF NA";
+          sub = m.detail;
+        } else if (m.status === "FF DA APM") {
+          border = "status-ffda";
+          status = "FF DA";
+          sub = m.detail;
+        }
+        const isSel = selectedIds.has(m.num);
+        return `<div id="row-${m.num}" onclick="handleRowClick('${
+          m.num
+        }')" class="row-item flex items-center justify-between p-3 bg-white ${border} ${
+          isSel ? "selected" : ""
+        } active:bg-slate-50 transition cursor-pointer">
+            <div class="flex items-center gap-3 overflow-hidden">
+                <div class="check-box min-w-[20px] h-[20px] rounded-full border-2 border-slate-300 flex items-center justify-center text-white text-xs ${
+                  isSel ? "bg-blue-500 border-blue-500" : ""
+                }"><i class="fa-solid fa-check check-icon ${
+          isSel ? "block" : "hidden"
+        }"></i></div>
+                <div class="min-w-0"><div class="flex items-baseline gap-2"><span class="font-bold text-slate-800 text-sm truncate">${
+                  m.warname
+                }</span><span class="text-[10px] text-slate-400 font-mono">${
+          m.num
+        }</span></div>${
+          sub
+            ? `<div class="text-[10px] font-bold text-slate-500 truncate">${sub}</div>`
+            : ""
+        }</div>
+            </div>
+            <div class="status-icon text-right"><div class="text-[9px] font-bold uppercase bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded inline-block">${status}</div></div>
+        </div>`;
+      }
+
+      // --- FF RENDER ---
+      function renderActiveFF() {
+        const c = document.getElementById("ff-container");
+        c.innerHTML = "";
+        const groups = {};
+        Object.values(db).forEach((m) => {
+          if (m.status !== "PRESENTE") {
+            const k = m.detail || "Sem Motivo";
+            if (!groups[k]) groups[k] = { type: m.status, list: [] };
+            groups[k].list.push(m);
+          }
+        });
+        if (Object.keys(groups).length === 0)
+          return document.getElementById("no-ff").classList.remove("hidden");
+        document.getElementById("no-ff").classList.add("hidden");
+        Object.entries(groups).forEach(([reason, data]) => {
+          const isExp = expandedGroups.has(reason);
+          const colorClass =
+            data.type === "FF DA APM" ? "border-blue-500" : "border-amber-500";
+          const badgeClass =
+            data.type === "FF DA APM"
+              ? "bg-blue-100 text-blue-700"
+              : "bg-amber-100 text-amber-700";
+          const membersHtml = data.list
+            .map(
+              (s) =>
+                `<div class="flex justify-between items-center py-2 border-b border-slate-100 last:border-0"><div><div class="font-bold text-xs text-slate-700">${s.warname}</div><div class="text-[9px] text-slate-400">${s.turma}</div></div><button onclick="returnSingle('${s.num}')" class="bg-green-100 text-green-700 px-2 py-1 rounded text-[10px] font-bold border border-green-200">BAIXA</button></div>`
+            )
+            .join("");
+          c.innerHTML += `<div class="bg-white p-4 rounded-lg shadow-sm border-l-4 ${colorClass} mb-3">
+                <div class="flex justify-between items-center mb-2"><div><h3 class="font-bold text-slate-800 text-sm uppercase">${reason}</h3><span class="text-[10px] text-slate-400 font-bold">${
+            data.type === "FF DA APM" ? "EXTERNO" : "INTERNO"
+          }</span></div><span class="${badgeClass} font-bold px-2 py-1 rounded text-xs">${
+            data.list.length
+          }</span></div>
+                <button onclick="toggleGroup('${reason}')" class="w-full text-center text-[10px] font-bold text-slate-400 uppercase py-1 hover:bg-slate-50 rounded mb-1">${
+            isExp ? "Ocultar" : "Ver Nomes"
+          } <i class="fa-solid fa-chevron-down ml-1 ${
+            isExp ? "rotate-180" : ""
+          }"></i></button>
+                <div class="${
+                  isExp ? "block" : "hidden"
+                } bg-slate-50 p-2 rounded mb-2 max-h-60 overflow-y-auto">${membersHtml}</div>
+                <button onclick="returnGroup('${reason}')" class="w-full py-2 bg-green-50 text-green-700 font-bold rounded border border-green-200 text-xs hover:bg-green-100"><i class="fa-solid fa-check mr-1"></i> BAIXA TOTAL</button>
+            </div>`;
+        });
+      }
+
+      // --- CORE LOGIC ---
+      window.toggleTurma = (h, t) => {
+        const c = h.nextElementSibling;
+        if (c.classList.contains("open")) {
+          c.classList.remove("open");
+          h.querySelector("i").classList.remove("rotate-90");
+          openTurmas.delete(t);
+        } else {
+          c.classList.add("open");
+          h.querySelector("i").classList.add("rotate-90");
+          openTurmas.add(t);
+        }
+      };
+      window.toggleGroup = (k) => {
+        if (expandedGroups.has(k)) expandedGroups.delete(k);
+        else expandedGroups.add(k);
+        renderActiveFF();
+      };
+      window.returnSingle = (id) => {
+        updateSingleStatus(id, "PRESENTE", "");
+        save();
+        renderActiveFF();
+        renderRoster();
+      };
+      window.returnGroup = (reason) => {
+        if (!confirm(`Retornar todos de: ${reason}?`)) return;
+        Object.values(db).forEach((m) => {
+          if (m.detail === reason && m.status !== "PRESENTE")
+            updateSingleStatus(m.num, "PRESENTE", "");
+        });
+        save();
+        renderActiveFF();
+        renderRoster();
+      };
+      window.handleRowClick = (id) => {
+        if (isSelectionMode) {
+          const r = document.getElementById(`row-${id}`);
+          if (selectedIds.has(id)) {
+            selectedIds.delete(id);
+            r.classList.remove("selected");
+            r.querySelector(".check-icon").classList.add("hidden");
+          } else {
+            selectedIds.add(id);
+            r.classList.add("selected");
+            r.querySelector(".check-icon").classList.remove("hidden");
+          }
+          document.getElementById("sel-count").innerText = selectedIds.size;
+        } else {
+          currentId = id;
+          openIndividual();
+        }
+      };
+      window.toggleSelectionMode = () => {
+        isSelectionMode = !isSelectionMode;
+        document.body.classList.toggle("selection-mode");
+        const bar = document.getElementById("batch-bar");
+        const btn = document.getElementById("btn-mode");
+        if (isSelectionMode) {
+          bar.classList.remove("translate-y-full");
+          btn.classList.add("bg-blue-600", "border-transparent");
+          btn.innerHTML = "CANCELAR";
+        } else {
+          bar.classList.add("translate-y-full");
+          btn.classList.remove("bg-blue-600", "border-transparent");
+          btn.innerHTML = '<i class="fa-solid fa-list-check mr-1"></i> SELEÇÃO';
+          selectedIds.clear();
+          renderRoster();
+        }
+      };
+      window.openIndividual = () => {
+        const m = db[currentId];
+        document.getElementById("modal-name").innerText = m.warname;
+        document.getElementById("modal-sub").innerText = m.turma;
+        document.getElementById("reason-area").classList.add("hidden");
+        document.getElementById("modal-individual").classList.remove("hidden");
+      };
+      window.closeIndividual = () =>
+        document.getElementById("modal-individual").classList.add("hidden");
+      window.askReason = (s) => {
+        tempStatus = s;
+        document.getElementById("reason-area").classList.remove("hidden");
+        document.getElementById("input-reason").focus();
+      };
+      window.confirmStatusReason = () => {
+        const d = document.getElementById("input-reason").value;
+        if (!d && tempStatus !== "PRESENTE") return alert("Motivo obrigatório");
+        updateSingleStatus(currentId, tempStatus, d);
+        save();
+        closeIndividual();
+        renderRoster();
+      };
+
+      function updateSingleStatus(id, s, d) {
+        const m = db[id];
+        const now = new Date();
+        const timeStr = formatTime(now.toISOString());
+        let type =
+          s === "PRESENTE" ? "RETORNO" : s === "FF DA APM" ? "SAIDA" : "FF";
+        let act =
+          s === "PRESENTE"
+            ? `Retorno`
+            : `${s === "FF DA APM" ? "MISSÃO/EXT" : "FF INT"}: ${d}`;
+        if (s === "PRESENTE" && m.lastExitTime) {
+          const diff = Math.floor((now - new Date(m.lastExitTime)) / 60000);
+          act += ` (Dur: ${Math.floor(diff / 60)}h${diff % 60}m)`;
+          m.lastExitTime = null;
+        } else if (s !== "PRESENTE") {
+          m.lastExitTime = now.toISOString();
+        }
+        m.status = s;
+        m.detail = d;
+        m.lastUpdate = now.toISOString();
+        m.history.push({ action: act, time: timeStr });
+        addToLog(m.warname, m.turma, type, act, timeStr);
+      }
+
+      window.openBatchReason = (t) => {
+        if (selectedIds.size === 0) return alert("Selecione alguém");
+        batchStatusTarget = t;
+        document.getElementById("batch-title").innerText = "Lançar em Lote";
+        document.getElementById("batch-label").innerText = "Motivo / Missão";
+        document.getElementById("batch-total").innerText = selectedIds.size;
+        document.getElementById("batch-input").value = "";
+        document
+          .getElementById("modal-batch-reason")
+          .classList.remove("hidden");
+      };
+      window.closeBatchModal = () =>
+        document.getElementById("modal-batch-reason").classList.add("hidden");
+      window.confirmBatchAction = () => {
+        const v = document.getElementById("batch-input").value;
+        if (!v) return alert("Preencha o campo");
+        applyBatchStatus(batchStatusTarget, v);
+        closeBatchModal();
+      };
+      window.applyBatchStatus = (s, d = "") => {
+        if (selectedIds.size === 0) return;
+        selectedIds.forEach((id) => updateSingleStatus(id, s, d));
+        save();
+        toggleSelectionMode();
+        renderRoster();
+        renderActiveFF();
+      };
+
+      function addToLog(w, t, type, act, time) {
+        globalLog.unshift({
+          id: Date.now() + Math.random(),
+          w,
+          t,
+          type,
+          act,
+          time,
+        });
+        if (globalLog.length > 300) globalLog.pop();
+      }
+      function renderLog() {
+        const c = document.getElementById("log-container");
+        if (globalLog.length === 0)
+          return (c.innerHTML =
+            '<div class="text-center text-slate-400 py-10">Vazio</div>');
+        c.innerHTML = globalLog
+          .map(
+            (l) =>
+              `<div class="timeline-item tag-${
+                l.type
+              }"><div class="flex justify-between"><div><span class="font-bold text-slate-700 text-sm">${
+                l.w
+              }</span> <span class="bg-slate-100 text-[10px] px-1 rounded text-slate-500">${
+                l.t
+              }</span></div><span class="font-mono text-xs font-bold text-slate-500">${
+                l.time
+              }</span></div><div class="text-xs text-slate-500 mt-0.5"><strong class="text-[9px] uppercase tracking-wide mr-1 ${
+                l.type === "SAIDA"
+                  ? "text-blue-600"
+                  : l.type === "RETORNO"
+                  ? "text-green-600"
+                  : "text-amber-600"
+              }">[${l.type}]</strong> ${l.act
+                .replace("MISSÃO/EXT: ", "")
+                .replace("FF INT: ", "")}</div></div>`
+          )
+          .join("");
+      }
+      window.clearLog = () => {
+        if (confirm("Limpar log?")) {
+          globalLog = [];
+          save();
+          renderLog();
+        }
+      };
+
+      window.setTab = (t) => {
+        ["efetivo", "ff", "diario"].forEach((x) => {
+          document.getElementById(`page-${x}`).classList.add("page-hidden");
+          document
+            .getElementById(`tab-${x}`)
+            .classList.replace("tab-active", "tab-inactive");
+        });
+        document.getElementById(`page-${t}`).classList.remove("page-hidden");
+        document
+          .getElementById(`tab-${t}`)
+          .classList.replace("tab-inactive", "tab-active");
+        if (t === "ff") renderActiveFF();
+        if (t === "diario") renderLog();
+      };
+
+      window.clearSearch = () => {
+        document.getElementById("searchInput").value = "";
+        document.getElementById("btnClearSearch").classList.add("hidden");
+        renderRoster();
+      };
+      document.getElementById("searchInput").addEventListener("input", (e) => {
+        document
+          .getElementById("btnClearSearch")
+          .classList.toggle("hidden", e.target.value === "");
+        renderRoster();
+      });
+      function updateStats() {
+        let p = 0,
+          f1 = 0,
+          f2 = 0;
+        Object.values(db).forEach((x) => {
+          if (x.status === "PRESENTE") p++;
+          else if (x.status === "FF NA APM") f1++;
+          else f2++;
+        });
+        document.getElementById("stat-pres").innerText = p;
+        document.getElementById("stat-ffna").innerText = f1;
+        document.getElementById("stat-ffda").innerText = f2;
+        const bf = document.getElementById("badge-ff");
+        bf.innerText = f1 + f2;
+        bf.classList.toggle("hidden", f1 + f2 === 0);
+      }
+      function formatTime(iso) {
+        return new Date(iso).toLocaleTimeString("pt-BR", {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      }
+
+      init();
+    </script>
+  </body>
+</html>
