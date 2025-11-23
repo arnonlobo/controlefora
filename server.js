@@ -4,14 +4,18 @@ const path = require("path");
 const cors = require("cors");
 
 const app = express();
-const PORT = 5000; // Porta 5000 para bater com o HTML
+const PORT = 5000;
 const DB_FILE = path.join(__dirname, "database.json");
 
 // Middleware
-app.use(cors()); // Permite conexão do HTML
-app.use(express.json({ limit: "50mb" })); // Permite dados grandes
+app.use(cors());
+app.use(express.json({ limit: "50mb" }));
 
-// Função para garantir que o arquivo existe
+// --- ESTA É A MÁGICA: SERVIR O SITE ---
+// Diz ao servidor para entregar os arquivos da pasta atual (index.html)
+app.use(express.static(__dirname));
+
+// Função Banco de Dados
 async function ensureDbExists() {
   try {
     await fs.access(DB_FILE);
@@ -21,33 +25,32 @@ async function ensureDbExists() {
   }
 }
 
-// Rota: Carregar Dados
+// Rota API: Carregar
 app.get("/api/load", async (req, res) => {
   try {
     await ensureDbExists();
     const data = await fs.readFile(DB_FILE, "utf-8");
     res.json(JSON.parse(data));
   } catch (error) {
-    console.error("Erro ao ler banco:", error);
-    res.status(500).json({ error: "Erro ao carregar dados" });
+    res.status(500).json({ error: "Erro ao carregar" });
   }
 });
 
-// Rota: Salvar Dados
+// Rota API: Salvar
 app.post("/api/save", async (req, res) => {
   try {
-    const data = req.body;
-    // Salva formatado para ficar legível se você abrir o arquivo
-    await fs.writeFile(DB_FILE, JSON.stringify(data, null, 4));
+    await fs.writeFile(DB_FILE, JSON.stringify(req.body, null, 4));
     res.json({ status: "success" });
   } catch (error) {
-    console.error("Erro ao salvar:", error);
-    res.status(500).json({ error: "Erro ao salvar dados" });
+    res.status(500).json({ error: "Erro ao salvar" });
   }
 });
 
-// Iniciar Servidor
-app.listen(PORT, () => {
-  console.log(`🚀 Servidor Rodando em http://localhost:${PORT}`);
-  console.log(`📂 Salvando dados em: ${DB_FILE}`);
+// Rota Principal (Garante que o index.html abra)
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "index.html"));
+});
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 Sistema Online na porta ${PORT}`);
 });
